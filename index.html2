@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Run Away!</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #171717;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+#game {
+  position: relative;
+  width: min(900px, 96vw);
+  height: min(560px, 88vh);
+  background: linear-gradient(#8fd3ff 0 68%, #79c95b 68% 100%);
+  border: 4px solid white;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+}
+
+.cloud {
+  position: absolute;
+  width: 110px;
+  height: 35px;
+  background: white;
+  border-radius: 30px;
+  opacity: .85;
+}
+
+.cloud::before,
+.cloud::after {
+  content: "";
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+}
+
+.cloud::before {
+  width: 45px;
+  height: 45px;
+  left: 18px;
+  top: -20px;
+}
+
+.cloud::after {
+  width: 55px;
+  height: 55px;
+  right: 15px;
+  top: -28px;
+}
+
+#player {
+  position: absolute;
+  width: 44px;
+  height: 54px;
+  left: 80px;
+  bottom: 82px;
+  background: #ffcf33;
+  border: 3px solid #222;
+  border-radius: 12px 12px 8px 8px;
+  z-index: 5;
+}
+
+#player::before {
+  content: "•  •";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 15px;
+  letter-spacing: 3px;
+}
+
+#player::after {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 5px;
+  background: #222;
+  border-radius: 5px;
+  bottom: 9px;
+  left: 4px;
+}
+
+.obstacle {
+  position: absolute;
+  width: 38px;
+  height: 54px;
+  bottom: 82px;
+  background: #e84d4d;
+  border: 3px solid #222;
+  border-radius: 8px 8px 3px 3px;
+  z-index: 4;
+}
+
+#ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 82px;
+  background: repeating-linear-gradient(
+    135deg,
+    #69b94c 0 18px,
+    #61ad46 18px 36px
+  );
+  border-top: 4px solid #222;
+}
+
+#score {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  font-size: 26px;
+  font-weight: 800;
+  color: #222;
+  z-index: 10;
+}
+
+#best {
+  position: absolute;
+  top: 52px;
+  left: 23px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  z-index: 10;
+}
+
+#message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255,255,255,.35);
+  z-index: 20;
+  text-align: center;
+}
+
+#message h1 {
+  margin: 0 0 8px;
+  font-size: 52px;
+  color: #222;
+}
+
+#message p {
+  margin: 6px 0 18px;
+  font-size: 18px;
+  color: #333;
+}
+
+button {
+  border: 3px solid #222;
+  background: white;
+  padding: 12px 25px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:hover {
+  transform: translateY(-2px);
+}
+
+.hidden {
+  display: none !important;
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+  <div class="cloud" style="left:15%;top:12%;"></div>
+  <div class="cloud" style="left:62%;top:22%;transform:scale(.75);"></div>
+
+  <div id="score">SCORE: 0</div>
+  <div id="best">BEST: 0</div>
+
+  <div id="player"></div>
+
+  <div id="ground"></div>
+
+  <div id="message">
+    <h1>RUN AWAY!</h1>
+    <p>SPACE / ↑ / 화면 클릭으로 점프</p>
+    <button id="startBtn">START GAME</button>
+  </div>
+
+</div>
+
+<script>
+
+const game = document.getElementById("game");
+const player = document.getElementById("player");
+const message = document.getElementById("message");
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const startBtn = document.getElementById("startBtn");
+
+let playing = false;
+let jumping = false;
+let velocity = 0;
+let playerY = 82;
+
+let speed = 6;
+let score = 0;
+let lastTime = 0;
+let obstacleTimer = 0;
+
+let best = Number(localStorage.getItem("runBest") || 0);
+
+bestText.textContent = "BEST: " + best;
+
+
+// 점프
+function jump() {
+
+  if (!playing) return;
+
+  if (!jumping) {
+
+    jumping = true;
+    velocity = 14;
+
+  }
+}
+
+
+// 장애물 생성
+function spawnObstacle() {
+
+  const obstacle = document.createElement("div");
+
+  obstacle.className = "obstacle";
+
+  obstacle.style.right = "-50px";
+
+  obstacle.style.height =
+    (42 + Math.random() * 30) + "px";
+
+  game.appendChild(obstacle);
+
+  return obstacle;
+}
+
+
+let obstacles = [];
+
+
+// 게임 시작
+function startGame() {
+
+  obstacles.forEach(o => o.remove());
+
+  obstacles = [];
+
+  playing = true;
+
+  jumping = false;
+  velocity = 0;
+
+  playerY = 82;
+
+  speed = 6;
+  score = 0;
+
+  obstacleTimer = 0;
+
+  scoreText.textContent = "SCORE: 0";
+
+  message.classList.add("hidden");
+
+  lastTime = performance.now();
+
+  requestAnimationFrame(loop);
+}
+
+
+// 게임 오버
+function gameOver() {
+
+  playing = false;
+
+  if (score > best) {
+
+    best = score;
+
+    localStorage.setItem("runBest", best);
+
+    bestText.textContent = "BEST: " + best;
+  }
+
+  message.innerHTML = `
+
+    <h1>GAME OVER</h1>
+
+    <p>
+      점수: ${score}
+      &nbsp; | &nbsp;
+      최고점수: ${best}
+    </p>
+
+    <button id="restartBtn">
+      다시 하기
+    </button>
+
+  `;
+
+  message.classList.remove("hidden");
+
+  document.getElementById("restartBtn").onclick =
+    startGame;
+}
+
+
+// 충돌 검사
+function isColliding(a, b) {
+
+  const r1 = a.getBoundingClientRect();
+  const r2 = b.getBoundingClientRect();
+
+  return !(
+    r1.right < r2.left ||
+    r1.left > r2.right ||
+    r1.bottom < r2.top ||
+    r1.top > r2.bottom
+  );
+}
+
+
+// 게임 루프
+function loop(time) {
+
+  if (!playing) return;
+
+  const dt =
+    Math.min(
+      (time - lastTime) / 16.67,
+      2
+    );
+
+  lastTime = time;
+
+
+  // 점프 물리
+  if (jumping) {
+
+    playerY += velocity * dt;
+
+    velocity -= 0.8 * dt;
+
+    if (playerY <= 82) {
+
+      playerY = 82;
+
+      jumping = false;
+
+      velocity = 0;
+    }
+
+    player.style.bottom =
+      playerY + "px";
+  }
+
+
+  // 장애물 생성
+  obstacleTimer += dt;
+
+  const interval =
+    Math.max(
+      48,
+      90 - score * 0.35
+    );
+
+  if (obstacleTimer >= interval) {
+
+    obstacles.push(
+      spawnObstacle()
+    );
+
+    obstacleTimer = 0;
+  }
+
+
+  // 장애물 이동
+  for (
+    let i = obstacles.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const o = obstacles[i];
+
+    const currentRight =
+      parseFloat(o.style.right);
+
+    o.style.right =
+      (currentRight + speed * dt) + "px";
+
+
+    // 충돌
+    if (isColliding(player, o)) {
+
+      gameOver();
+
+      return;
+    }
+
+
+    // 화면 밖으로 나감
+    if (
+      currentRight >
+      game.clientWidth + 60
+    ) {
+
+      o.remove();
+
+      obstacles.splice(i, 1);
+
+      score++;
+
+      scoreText.textContent =
+        "SCORE: " + score;
+
+      // 점점 빨라짐
+      speed =
+        Math.min(
+          12,
+          6 + score * 0.035
+        );
+    }
+  }
+
+
+  requestAnimationFrame(loop);
+}
+
+
+// 키보드 조작
+document.addEventListener(
+  "keydown",
+  e => {
+
+    if (
+      e.code === "Space" ||
+      e.code === "ArrowUp"
+    ) {
+
+      e.preventDefault();
+
+      if (!playing) {
+
+        startGame();
+
+      } else {
+
+        jump();
+      }
+    }
+  }
+);
+
+
+// 마우스 / 터치
+game.addEventListener(
+  "pointerdown",
+  e => {
+
+    if (e.target.tagName === "BUTTON")
+      return;
+
+    if (!playing) {
+
+      startGame();
+
+    } else {
+
+      jump();
+    }
+  }
+);
+
+
+// 시작 버튼
+startBtn.onclick = startGame;
+
+</script>
+
+</body>
+</html>
